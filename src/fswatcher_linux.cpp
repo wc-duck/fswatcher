@@ -18,6 +18,8 @@ struct fswatcher
 	fswatcher_allocator* allocator;
 	int notifierfd;
 
+	int watching_dir_events;
+	int watching_file_events;
 	uint32_t watch_flags;
 
 	int num_watches;
@@ -63,7 +65,7 @@ static void fswatcher_add( fswatcher_t w, char* path )
 		return;
 	}
 
-	w->watches[ w->num_watches ].wd = inotify_add_watch( w->notifierfd, path, IN_ALL_EVENTS );
+	w->watches[ w->num_watches ].wd = inotify_add_watch( w->notifierfd, path, w->watch_flags );
 	if( w->watches[ w->num_watches ].wd < 0 )
 	{
 		printf("buhuhuhu2\n");
@@ -77,15 +79,18 @@ static void fswatcher_remove( fswatcher_t w, int wd )
 {
 	for( int i = 0; i < w->num_watches; ++ i )
 	{
-		if( wd == w->watches[i].wd )
-		{
-			fswatcher_free( w->allocator, (void*)w->watches[i].path );
-			int swap_index = w->num_watches - 1;
-			if( i != swap_index )
-				memcpy( w->watches + i, w->watches + swap_index, sizeof( fswatcher_item ) );
-			--w->num_watches;
-			return;
-		}
+		if( wd != w->watches[i].wd )
+			continue;
+
+		fswatcher_free( w->allocator, (void*)w->watches[i].path );
+		w->watches[i].wd = 0;
+		w->watches[i].path = 0x0;
+
+		int swap_index = w->num_watches - 1;
+		if( i != swap_index )
+			memcpy( w->watches + i, w->watches + swap_index, sizeof( fswatcher_item ) );
+		--w->num_watches;
+		return;
 	}
 }
 
@@ -118,9 +123,23 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 		allocator = &g_fswatcher_default_alloc;
 	(void)types;
 
-	// TODO: memory alloc!
 	fswatcher* w = (fswatcher*)fswatcher_realloc( allocator, 0x0, 0, sizeof( fswatcher ) );
 	memset( w, 0x0, sizeof( fswatcher ) );
+	w->allocator = allocator;
+	w->watch_flags = 0;
+
+	if( types & ( FSWATCHER_EVENT_FILE_CREATE | FSWATCHER_EVENT_DIR_CREATE ) ) w->watch_flags |= IN_CREATE;
+	if( types & ( FSWATCHER_EVENT_FILE_REMOVE | FSWATCHER_EVENT_DIR_REMOVE ) ) w->watch_flags |= IN_DELETE;
+	if( types & ( FSWATCHER_EVENT_FILE_MOVED  | FSWATCHER_EVENT_DIR_MOVED  ) ) w->watch_flags |= IN_MOVE;
+	if( types &   FSWATCHER_EVENT_FILE_MODIFY ) w->watch_flags |= IN_MODIFY;
+	if( types & ( FSWATCHER_EVENT_FILE_CREATE |
+				  FSWATCHER_EVENT_FILE_REMOVE |
+				  FSWATCHER_EVENT_FILE_MOVED ) )
+		w->watching_file_events = 1;
+	if( types & ( FSWATCHER_EVENT_DIR_CREATE |
+				  FSWATCHER_EVENT_DIR_REMOVE |
+				  FSWATCHER_EVENT_DIR_MOVED ) )
+		w->watching_dir_events = 1;
 
 	int inotify_flags = 0;
 	if( ( flags & FSWATCHER_CREATE_BLOCKING ) == 0 )
@@ -147,39 +166,18 @@ void fswatcher_destroy( fswatcher_t watcher )
 	fswatcher_free( watcher->allocator, watcher );
 }
 
-//static void mask_to_string( uint32_t mask )
-//{
-//    printf("mask = ");
-//    if (mask & IN_ACCESS)        printf("IN_ACCESS ");
-//    if (mask & IN_ATTRIB)        printf("IN_ATTRIB ");
-//    if (mask & IN_CLOSE_NOWRITE) printf("IN_CLOSE_NOWRITE ");
-//    if (mask & IN_CLOSE_WRITE)   printf("IN_CLOSE_WRITE ");
-//    if (mask & IN_CREATE)        printf("IN_CREATE ");
-//    if (mask & IN_DELETE)        printf("IN_DELETE ");
-//    if (mask & IN_DELETE_SELF)   printf("IN_DELETE_SELF ");
-//    if (mask & IN_IGNORED)       printf("IN_IGNORED ");
-//    if (mask & IN_ISDIR)         printf("IN_ISDIR ");
-//    if (mask & IN_MODIFY)        printf("IN_MODIFY ");
-//    if (mask & IN_MOVE_SELF)     printf("IN_MOVE_SELF ");
-//    if (mask & IN_MOVED_FROM)    printf("IN_MOVED_FROM ");
-//    if (mask & IN_MOVED_TO)      printf("IN_MOVED_TO ");
-//    if (mask & IN_OPEN)          printf("IN_OPEN ");
-//    if (mask & IN_Q_OVERFLOW)    printf("IN_Q_OVERFLOW ");
-//    if (mask & IN_UNMOUNT)       printf("IN_UNMOUNT ");
-//    printf("\n");
-//}
-
-static char* fswatcher_build_full_path( fswatcher_t watcher, fswatcher_allocator* allocator, int wd, const char* name )
+static char* fswatcher_build_full_path( fswatcher_t watcher, fswatcher_allocator* allocator, int wd, const char* name, uint32_t name_len )
 {
 	const char* dirpath = fswatcher_find_wd_path( watcher, wd );
-	size_t length = strlen( dirpath ) + 1 + strlen( name ) + 1;
+	size_t dirlen = strlen( dirpath );
+	size_t length = dirlen + 1 + name_len;
 	char* res = (char*)fswatcher_realloc( allocator, 0x0, 0, length );
 	if( res )
 	{
-		// TODO: whuha =/ unsafe and slow!
-		strcpy( res, dirpath );
-		strcat( res, "/" );
-		strcat( res, name );
+		memcpy( res, dirpath, dirlen );
+		res[dirlen] = '/';
+		memcpy( res + dirlen + 1, name, name_len );
+		res[length-1] = 0;
 	}
 	return res;
 }
@@ -193,7 +191,6 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 
 	while( true )
 	{
-		// TODO: switch to select!
 		char read_buffer[4096];
 		ssize_t read_bytes = read( watcher->notifierfd, read_buffer, sizeof( read_buffer ) );
 		if( read_bytes <= 0 )
@@ -205,55 +202,58 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 
 			if( ev->mask & IN_ISDIR )
 			{
-				if( ev->mask & IN_CREATE )
+				if( watcher->watching_dir_events )
 				{
-					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name );
-					fswatcher_add( watcher, src );
+					if( ev->mask & IN_CREATE )
+					{
+						char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
+						fswatcher_add( watcher, src );
 
-					// ... notify user ...
-					FS_MAKE_CALLBACK( FSWATCHER_EVENT_DIR_CREATE, src, 0x0 );
-					fswatcher_free( allocator, src );
-				}
-				else if( ev->mask & IN_DELETE )
-				{
-					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name );
-					fswatcher_remove( watcher, ev->wd );
+						// ... notify user ...
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_DIR_CREATE, src, 0x0 );
+						fswatcher_free( allocator, src );
+					}
+					else if( ev->mask & IN_DELETE )
+					{
+						char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
+						fswatcher_remove( watcher, ev->wd );
 
-					FS_MAKE_CALLBACK( FSWATCHER_EVENT_DIR_REMOVE, src, 0x0 );
-					fswatcher_free( allocator, src );
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_DIR_REMOVE, src, 0x0 );
+						fswatcher_free( allocator, src );
+					}
 				}
 			}
-			else
+			else if( watcher->watching_file_events )
 			{
 				if( ev->mask & IN_CREATE )
 				{
-					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name );
+					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
 					FS_MAKE_CALLBACK( FSWATCHER_EVENT_FILE_CREATE, src, 0x0 );
 					fswatcher_free( allocator, src );
 				}
 				else if( ev->mask & IN_DELETE )
 				{
-					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name );
+					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
 					FS_MAKE_CALLBACK( FSWATCHER_EVENT_FILE_REMOVE, src, 0x0 );
 					fswatcher_free( allocator, src );
 				}
 				else if( ev->mask & IN_MODIFY )
 				{
-					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name );
+					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
 					FS_MAKE_CALLBACK( FSWATCHER_EVENT_FILE_MODIFY, src, 0x0 );
 					fswatcher_free( allocator, src );
 				}
 
 				// TODO: handle move!
 
-				else if( ev->mask & IN_Q_OVERFLOW )
-				{
-					FS_MAKE_CALLBACK( FSWATCHER_EVENT_BUFFER_OVERFLOW, 0x0, 0x0 );
-				}
 //				else
 //					mask_to_string( ev->mask );
 
 				// handle overflow here!
+			}
+			else if( ev->mask & IN_Q_OVERFLOW )
+			{
+				FS_MAKE_CALLBACK( FSWATCHER_EVENT_BUFFER_OVERFLOW, 0x0, 0x0 );
 			}
 
 			bufp += sizeof(inotify_event) + ev->len;
