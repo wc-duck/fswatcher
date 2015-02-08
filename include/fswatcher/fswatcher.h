@@ -7,6 +7,16 @@
 extern "C" {
 #endif  // __cplusplus
 
+/**
+ *
+ */
+#if !defined(FSWATCHER_PATH_FORMAT_NATIVE) || !defined(FSWATCHER_PATH_FORMAT_UTF8)
+#    define FSWATCHER_PATH_FORMAT_UTF8
+#endif
+
+/**
+ *
+ */
 enum fswatcher_create_flags
 {
 	FSWATCHER_CREATE_BLOCKING  = (1 << 1), ///< calls to fswatcher_poll should block until 1 or more events arrive.
@@ -31,7 +41,10 @@ enum fswatcher_event_type
 	FSWATCHER_EVENT_ALL = FSWATCHER_EVENT_FILE_CREATE |
 						  FSWATCHER_EVENT_FILE_REMOVE |
 						  FSWATCHER_EVENT_FILE_MODIFY |
-						  FSWATCHER_EVENT_FILE_MOVED,
+						  FSWATCHER_EVENT_FILE_MOVED  |
+						  FSWATCHER_EVENT_DIR_CREATE  |
+						  FSWATCHER_EVENT_DIR_REMOVE  |
+						  FSWATCHER_EVENT_DIR_MOVED   ,
 
 	FSWATCHER_EVENT_BUFFER_OVERFLOW ///< doc me
 };
