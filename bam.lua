@@ -1,13 +1,9 @@
 --[[
-   Simple http-server written to be an drop-in code, focus is to be small
-   and easy to use but maybe not efficient.
-   It also tries to make as few decisions for the user as possible, decisions
-   such as how to allocate memory and how to process requests ( direct in loop,
-   thread? )
+   A small drop-in library for watching the filesystem for changes.
 
-   version 0.1, october, 2014
+   version 0.1, february, 2015
 
-   Copyright (C) 2012- Fredrik Kihlander
+   Copyright (C) 2015- Fredrik Kihlander
 
    This software is provided 'as-is', without any express or implied
    warranty.  In no event will the authors be held liable for any damages
