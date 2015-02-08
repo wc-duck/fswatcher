@@ -125,7 +125,6 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 {
 	if( allocator == 0x0 )
 		allocator = &g_fswatcher_default_alloc;
-	(void)types;
 
 	fswatcher* w = (fswatcher*)fswatcher_realloc( allocator, 0x0, 0, sizeof( fswatcher ) );
 	memset( w, 0x0, sizeof( fswatcher ) );
@@ -144,6 +143,8 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 				  FSWATCHER_EVENT_DIR_REMOVE |
 				  FSWATCHER_EVENT_DIR_MOVED ) )
 		w->watching_dir_events = 1;
+
+	w->watch_flags |= IN_DELETE_SELF;
 
 	int inotify_flags = 0;
 	if( ( flags & FSWATCHER_CREATE_BLOCKING ) == 0 )
@@ -179,8 +180,8 @@ static char* fswatcher_build_full_path( fswatcher_t watcher, fswatcher_allocator
 	if( res )
 	{
 		memcpy( res, dirpath, dirlen );
-		res[dirlen] = '/';
-		memcpy( res + dirlen + 1, name, name_len );
+		res[dirlen-1] = '/';
+		memcpy( res + dirlen, name, name_len );
 		res[length-1] = 0;
 	}
 	return res;
@@ -226,6 +227,7 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 			bool is_modify    = ( ev->mask & IN_MODIFY );
 			bool is_move_from = ( ev->mask & IN_MOVED_FROM );
 			bool is_move_to   = ( ev->mask & IN_MOVED_TO );
+			bool is_del_self  = ( ev->mask & IN_DELETE_SELF );
 
 			if( is_dir )
 			{
@@ -235,19 +237,13 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 					{
 						char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
 						fswatcher_add( watcher, src );
-
-						// ... notify user ...
 						FS_MAKE_CALLBACK( FSWATCHER_EVENT_DIR_CREATE, src, 0x0 );
 						fswatcher_free( allocator, src );
 					}
 					else if( is_remove )
-					{
-						char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
+						fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_DIR_REMOVE, ev );
+					else if( is_del_self )
 						fswatcher_remove( watcher, ev->wd );
-
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_DIR_REMOVE, src, 0x0 );
-						fswatcher_free( allocator, src );
-					}
 				}
 			}
 			else if( watcher->watching_file_events )
