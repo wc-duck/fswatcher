@@ -52,6 +52,14 @@ static void fswatcher_free( fswatcher_allocator* allocator, void* ptr )
 		allocator->free( allocator, ptr );
 }
 
+static char* fswatcher_strdup( fswatcher_allocator* allocator, const char* str )
+{
+	size_t len = strlen( str ) + 1;
+	char* res = (char*)fswatcher_realloc( allocator, 0x0, 0, len );
+	strcpy( res, str );
+	return res;
+}
+
 static const char* fswatcher_find_wd_path( fswatcher_t w, int wd )
 {
 	for( int i = 0; i < w->num_watches; ++ i )
@@ -75,7 +83,7 @@ static void fswatcher_add( fswatcher_t w, char* path )
 		return;
 	}
 	w->watches[ w->num_watches ].wd = wd;
-	w->watches[ w->num_watches ].path = strdup( path ); // TODO: how do we want to store these?
+	w->watches[ w->num_watches ].path = fswatcher_strdup( w->allocator, path );
 	++w->num_watches;
 }
 
@@ -168,6 +176,8 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 void fswatcher_destroy( fswatcher_t watcher )
 {
 	close( watcher->notifierfd );
+	for( int i = 0; i < watcher->num_watches; ++i )
+		fswatcher_free( watcher->allocator, (void*)watcher->watches[i].path );
 	fswatcher_free( watcher->allocator, watcher );
 }
 
