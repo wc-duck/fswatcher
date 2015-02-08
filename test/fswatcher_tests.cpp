@@ -87,7 +87,7 @@ TEST create_remove_dir()
 	setup_test_dir();
 
 	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, TEST_DIR, 0x0 );
-	test_handler handler = { watch_event_handler, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
+	test_handler handler = { { watch_event_handler }, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
 
 	CREATE_DIR( TEST_DIR "d1" );
 	fswatcher_poll( watcher, &handler.handler, 0x0 );
@@ -116,7 +116,7 @@ TEST create_remove_file()
 	setup_test_dir();
 
 	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, TEST_DIR, 0x0 );
-	test_handler handler = { watch_event_handler, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
+	test_handler handler = { { watch_event_handler }, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
 
 	CREATE_FILE( TEST_DIR "f1" );
 	fswatcher_poll( watcher, &handler.handler, 0x0 );
