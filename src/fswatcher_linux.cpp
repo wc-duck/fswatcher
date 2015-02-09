@@ -51,8 +51,9 @@ struct fswatcher
 	int watching_file_events;
 	uint32_t watch_flags;
 
-	int num_watches;
-	fswatcher_item watches[256]; // TODO: configurable size!
+	int watches_cnt;
+	int watches_cap;
+	fswatcher_item* watches;
 };
 
 static void* fswatcher_default_realloc( fswatcher_allocator*, void* ptr, size_t, size_t new_size )
@@ -88,7 +89,7 @@ static char* fswatcher_strdup( fswatcher_allocator* allocator, const char* str )
 
 static const char* fswatcher_find_wd_path( fswatcher_t w, int wd )
 {
-	for( int i = 0; i < w->num_watches; ++ i )
+	for( int i = 0; i < w->watches_cnt; ++ i )
 		if( wd == w->watches[i].wd )
 			return w->watches[i].path;
 	return 0x0;
@@ -96,26 +97,26 @@ static const char* fswatcher_find_wd_path( fswatcher_t w, int wd )
 
 static void fswatcher_add( fswatcher_t w, char* path )
 {
-	if( w->num_watches >= (int)( sizeof( w->watches ) / sizeof( w->watches[0] ) ) )
-	{
-		printf("to many dirs!\n");
-		return;
-	}
-
 	int wd = inotify_add_watch( w->notifierfd, path, w->watch_flags );
 	if( wd < 0 )
 	{
 		printf("buhuhuhu2\n");
 		return;
 	}
-	w->watches[ w->num_watches ].wd = wd;
-	w->watches[ w->num_watches ].path = fswatcher_strdup( w->allocator, path );
-	++w->num_watches;
+	if( w->watches_cnt >= w->watches_cap )
+	{
+		w->watches = (fswatcher_item*)fswatcher_realloc( w->allocator, w->watches, sizeof(fswatcher_item) * w->watches_cap, sizeof(fswatcher_item) * w->watches_cap * 2 );
+		w->watches_cap *= 2;
+	}
+
+	w->watches[ w->watches_cnt ].wd = wd;
+	w->watches[ w->watches_cnt ].path = fswatcher_strdup( w->allocator, path );
+	++w->watches_cnt;
 }
 
 static void fswatcher_remove( fswatcher_t w, int wd )
 {
-	for( int i = 0; i < w->num_watches; ++ i )
+	for( int i = 0; i < w->watches_cnt; ++ i )
 	{
 		if( wd != w->watches[i].wd )
 			continue;
@@ -124,10 +125,10 @@ static void fswatcher_remove( fswatcher_t w, int wd )
 		w->watches[i].wd = 0;
 		w->watches[i].path = 0x0;
 
-		int swap_index = w->num_watches - 1;
+		int swap_index = w->watches_cnt - 1;
 		if( i != swap_index )
 			memcpy( w->watches + i, w->watches + swap_index, sizeof( fswatcher_item ) );
-		--w->num_watches;
+		--w->watches_cnt;
 		return;
 	}
 }
@@ -191,6 +192,9 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 		return 0x0;
 	}
 
+	w->watches_cap = 16; // 256;
+	w->watches = (fswatcher_item*)fswatcher_realloc( w->allocator, 0x0, 0, sizeof(fswatcher_item) * w->watches_cap );
+
 	char path_buffer[4096];
 	strncpy( path_buffer, watch_dir, sizeof( path_buffer ) );
 	// TODO: make sure path fit ...
@@ -202,8 +206,9 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 void fswatcher_destroy( fswatcher_t watcher )
 {
 	close( watcher->notifierfd );
-	for( int i = 0; i < watcher->num_watches; ++i )
+	for( int i = 0; i < watcher->watches_cnt; ++i )
 		fswatcher_free( watcher->allocator, (void*)watcher->watches[i].path );
+	fswatcher_free( watcher->allocator, watcher->watches );
 	fswatcher_free( watcher->allocator, watcher );
 }
 
