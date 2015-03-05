@@ -58,53 +58,25 @@ static const char* get_test_dir()
 	return temp_path;
 }
 
-static void create_dir( const char* dirname )
+static void run_system( const char* cmd, const char* path )
 {
 	char buffer[4096] = {0};
-#if defined( _WIN32 )
-	strcat( buffer, "mkdir " );
-#else
-	strcat( buffer, "mkdir -p " );
-#endif
-	strcat( buffer, dirname );
-	system( buffer );
+	strcat( buffer, cmd );
+	strcat( buffer, path );
+	(void)system( buffer );
 }
 
-static void create_file( const char* filename )
-{
-	char buffer[4096] = {0};
 #if defined( _WIN32 )
-	strcat( buffer, "type nul>>  " );
+static void create_dir ( const char* dirname  ) { run_system( "mkdir ", dirname ); }
+static void create_file( const char* filename ) { run_system( "type nul>> ", filename ); }
+static void remove_dir ( const char* dirname  ) { run_system( "rmdir /q /s ", dirname ); }
+static void remove_file( const char* filename ) { run_system( "del ", filename ); }
 #else
-	strcat( buffer, "touch " );
+static void create_dir ( const char* dirname  ) { run_system( "mkdir -p ", dirname ); }
+static void create_file( const char* filename ) { run_system( "touch ", filename ); }
+static void remove_dir ( const char* dirname  ) { run_system( "rm -rf ", dirname ); }
+static void remove_file( const char* filename ) { run_system( "rm ", filename ); }
 #endif
-	strcat( buffer, filename );
-	system( buffer );
-}
-
-static void remove_dir( const char* dirname )
-{
-	char buffer[4096] = {0};
-#if defined( _WIN32 )
-	strcat( buffer, "rmdir /q /s " );
-#else
-	strcat( buffer, "rm -rf " );
-#endif
-	strcat( buffer, dirname );
-	system( buffer );
-}
-
-static void remove_file( const char* filename )
-{
-	char buffer[4096] = {0};
-#if defined( _WIN32 )
-	strcat( buffer, "del " );
-#else
-	strcat( buffer, "rm " );
-#endif
-	strcat( buffer, filename );
-	system( buffer );
-}
 
 static const char* test_dir_path( const char* path )
 {
