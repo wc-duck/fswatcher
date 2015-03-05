@@ -63,7 +63,8 @@ static void run_system( const char* cmd, const char* path )
 	char buffer[4096] = {0};
 	strcat( buffer, cmd );
 	strcat( buffer, path );
-	(void)system( buffer );
+	if( system( buffer ) < 0 )
+		printf("faied to run system( %s )\n", buffer );
 }
 
 #if defined( _WIN32 )

@@ -49,8 +49,8 @@ struct fswatcher
 
 	uint32_t watch_flags;
 
-	int watches_cnt;
-	int watches_cap;
+	size_t watches_cnt;
+	size_t watches_cap;
 	fswatcher_item* watches;
 };
 
@@ -87,7 +87,7 @@ static char* fswatcher_strdup( fswatcher_allocator* allocator, const char* str )
 
 static const char* fswatcher_find_wd_path( fswatcher_t w, int wd )
 {
-	for( int i = 0; i < w->watches_cnt; ++ i )
+	for( size_t i = 0; i < w->watches_cnt; ++ i )
 		if( wd == w->watches[i].wd )
 			return w->watches[i].path;
 	return 0x0;
@@ -115,7 +115,7 @@ static void fswatcher_add( fswatcher_t w, char* path )
 
 static void fswatcher_remove( fswatcher_t w, int wd )
 {
-	for( int i = 0; i < w->watches_cnt; ++ i )
+	for( size_t i = 0; i < w->watches_cnt; ++ i )
 	{
 		if( wd != w->watches[i].wd )
 			continue;
@@ -124,7 +124,7 @@ static void fswatcher_remove( fswatcher_t w, int wd )
 		w->watches[i].wd = 0;
 		w->watches[i].path = 0x0;
 
-		int swap_index = w->watches_cnt - 1;
+		size_t swap_index = w->watches_cnt - 1;
 		if( i != swap_index )
 			memcpy( w->watches + i, w->watches + swap_index, sizeof( fswatcher_item ) );
 		--w->watches_cnt;
@@ -196,7 +196,7 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 void fswatcher_destroy( fswatcher_t watcher )
 {
 	close( watcher->notifierfd );
-	for( int i = 0; i < watcher->watches_cnt; ++i )
+	for( size_t i = 0; i < watcher->watches_cnt; ++i )
 		fswatcher_free( watcher->allocator, (void*)watcher->watches[i].path );
 	fswatcher_free( watcher->allocator, watcher->watches );
 	fswatcher_free( watcher->allocator, watcher );
