@@ -47,8 +47,6 @@ struct fswatcher
 	fswatcher_allocator* allocator;
 	int notifierfd;
 
-	int watching_dir_events;
-	int watching_file_events;
 	uint32_t watch_flags;
 
 	int watches_cnt;
@@ -100,7 +98,8 @@ static void fswatcher_add( fswatcher_t w, char* path )
 	int wd = inotify_add_watch( w->notifierfd, path, w->watch_flags );
 	if( wd < 0 )
 	{
-		printf("buhuhuhu2\n");
+		printf("buhuhuhu2 %s\n", path);
+		perror("whooot?\n");
 		return;
 	}
 	if( w->watches_cnt >= w->watches_cap )
@@ -166,19 +165,10 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 	w->allocator = allocator;
 	w->watch_flags = 0;
 
-	if( types & ( FSWATCHER_EVENT_FILE_CREATE | FSWATCHER_EVENT_DIR_CREATE ) ) w->watch_flags |= IN_CREATE;
-	if( types & ( FSWATCHER_EVENT_FILE_REMOVE | FSWATCHER_EVENT_DIR_REMOVE ) ) w->watch_flags |= IN_DELETE;
-	if( types & ( FSWATCHER_EVENT_FILE_MOVED  | FSWATCHER_EVENT_DIR_MOVED  ) ) w->watch_flags |= IN_MOVE;
-	if( types &   FSWATCHER_EVENT_FILE_MODIFY ) w->watch_flags |= IN_MODIFY;
-	if( types & ( FSWATCHER_EVENT_FILE_CREATE |
-				  FSWATCHER_EVENT_FILE_REMOVE |
-				  FSWATCHER_EVENT_FILE_MOVED ) )
-		w->watching_file_events = 1;
-	if( types & ( FSWATCHER_EVENT_DIR_CREATE |
-				  FSWATCHER_EVENT_DIR_REMOVE |
-				  FSWATCHER_EVENT_DIR_MOVED ) )
-		w->watching_dir_events = 1;
-
+	if( types & FSWATCHER_EVENT_CREATE ) w->watch_flags |= IN_CREATE;
+	if( types & FSWATCHER_EVENT_REMOVE ) w->watch_flags |= IN_DELETE;
+	if( types & FSWATCHER_EVENT_MOVED  ) w->watch_flags |= IN_MOVE;
+	if( types & FSWATCHER_EVENT_MODIFY ) w->watch_flags |= IN_MODIFY;
 	w->watch_flags |= IN_DELETE_SELF;
 
 	int inotify_flags = 0;
@@ -272,35 +262,36 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 
 			if( is_dir )
 			{
-				if( watcher->watching_dir_events )
+				if( is_create )
 				{
-					if( is_create )
-					{
-						char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
-						fswatcher_add( watcher, src );
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_DIR_CREATE, src, 0x0 );
-						fswatcher_free( allocator, src );
-					}
-					else if( is_remove )
-						fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_DIR_REMOVE, ev );
-					else if( is_del_self )
-						fswatcher_remove( watcher, ev->wd );
+					char* src = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
+					fswatcher_add( watcher, src );
+					FS_MAKE_CALLBACK( FSWATCHER_EVENT_CREATE, src, 0x0 );
+					fswatcher_free( allocator, src );
 				}
+				else if( is_remove )
+					fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_REMOVE, ev );
+				else if( is_del_self )
+					fswatcher_remove( watcher, ev->wd );
 			}
-			else if( watcher->watching_file_events )
+			else if( ev->mask & IN_Q_OVERFLOW )
+			{
+				FS_MAKE_CALLBACK( FSWATCHER_EVENT_BUFFER_OVERFLOW, 0x0, 0x0 );
+			}
+			else
 			{
 				if( is_create )
-					fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_FILE_CREATE, ev );
+					fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_CREATE, ev );
 				else if( is_remove )
-					fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_FILE_REMOVE, ev );
+					fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_REMOVE, ev );
 				else if( is_modify )
-					fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_FILE_MODIFY, ev );
+					fswatcher_make_callback_with_src_path( watcher, handler, FSWATCHER_EVENT_MODIFY, ev );
 				else if( is_move_from )
 				{
 					if( move_src != 0x0 )
 					{
 						// ... this is a new pair of a move, so the last one was move "outside" the current watch ...
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_FILE_MOVED, move_src, 0x0 );
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, 0x0 );
 						fswatcher_free( allocator, move_src );
 					}
 
@@ -314,7 +305,7 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 					{
 						// ... this is the dst for a move ...
 						char* dst = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_FILE_MOVED, move_src, dst );
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, dst );
 						fswatcher_free( watcher->allocator, dst );
 						fswatcher_free( watcher->allocator, move_src );
 						move_src = 0x0;
@@ -323,24 +314,20 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 					else if( move_src != 0x0 )
 					{
 						// ... this is a "move to outside of watch" ...
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_FILE_MOVED, move_src, 0x0 );
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, 0x0 );
 						fswatcher_free( watcher->allocator, move_src );
 						move_src = 0x0;
 						move_cookie = 0;
 
 						// ...followed by a "move from outside to watch ...
-						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_FILE_MOVED, ev );
+						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_MOVED, ev );
 					}
 					else
 					{
 						// ... this is a "move from outside to watch" ...
-						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_FILE_MOVED, ev );
+						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_MOVED, ev );
 					}
 				}
-			}
-			else if( ev->mask & IN_Q_OVERFLOW )
-			{
-				FS_MAKE_CALLBACK( FSWATCHER_EVENT_BUFFER_OVERFLOW, 0x0, 0x0 );
 			}
 
 			bufp += sizeof(inotify_event) + ev->len;
@@ -350,7 +337,7 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 	if( move_src )
 	{
 		// ... we have a "move to outside of watch" that was never closed ...
-		FS_MAKE_CALLBACK( FSWATCHER_EVENT_FILE_MOVED, move_src, 0x0 );
+		FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, 0x0 );
 		fswatcher_free( allocator, move_src );
 	}
 }

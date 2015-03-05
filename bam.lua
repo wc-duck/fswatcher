@@ -26,17 +26,82 @@
 
 BUILD_PATH = "local"
 
-config   = "debug"
-
-local settings = NewSettings() -- {}
-
-settings.cc.includes:Add("include")
-if family == 'windows' then
-	platform = "winx64"
-else
-	platform = "linux_x86_64"
-	settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2" )
+function get_config()
+    local config = ScriptArgs["config"]
+    if config == nil then
+        return "debug"
+    end
+    return config
 end
+
+function get_platform()
+    local platform = ScriptArgs["platform"]
+    if platform == nil then
+        if family == "windows" then
+            platform = "winx64"
+        else
+            platform = "linux_x86_64"
+        end
+    end
+    return platform
+end
+
+function get_base_settings()
+    local settings = {}
+
+    settings._is_settingsobject = true
+    settings.invoke_count = 0
+    settings.debug = 0
+    settings.optimize = 0
+    SetCommonSettings(settings)
+
+    -- add all tools
+    for _, tool in pairs(_bam_tools) do
+        tool(settings)
+    end
+
+    settings.cc.includes:Add( "include" )
+
+    return settings
+end
+
+function set_compiler( settings, config )
+    if family == "windows" then
+        compiler = "msvc"
+    else
+        compiler = ScriptArgs["compiler"]
+        if compiler == nil then
+            compiler = "gcc"
+        end
+    end
+
+    InitCommonCCompiler(settings)
+    if compiler == "msvc" then
+        SetDriversCL( settings )
+        if config == "release" then
+            settings.cc.flags:Add( "/Ox" )
+            settings.cc.flags:Add( "/TP" ) -- forcing c++ compile on windows =/
+        end
+    elseif compiler == "gcc" then
+        SetDriversGCC( settings )
+        settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2" )
+        if config == "release" then
+            settings.cc.flags:Add( "-O2" )
+        end
+    elseif compiler == "clang" then
+        SetDriversClang( settings )
+        settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2" )
+        if config == "release" then
+            settings.cc.flags:Add( "-O2" )
+        end
+    end
+end
+
+config   = get_config()
+platform = get_platform()
+settings = get_base_settings()
+set_compiler( settings, config )
+TableLock( settings )
 
 local output_path = PathJoin( BUILD_PATH, PathJoin( platform, config ) )
 local output_func = function(settings, path) return PathJoin(output_path, PathFilename(PathBase(path)) .. settings.config_ext) end

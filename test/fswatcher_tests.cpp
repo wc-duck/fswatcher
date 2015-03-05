@@ -30,20 +30,98 @@
 #include <string.h>
 #include <stdlib.h> // system
 
-#define TEST_DIR "local/testdir/"
+#include <stdio.h>
 
-#define CREATE_DIR( dir ) system( "mkdir -p " dir )
-#define REMOVE_DIR( dir ) system( "rm -rf " dir )
-#define CREATE_FILE( file ) system( "touch " file )
-#define REMOVE_FILE( file ) system( "rm " file )
+#if defined( _WIN32 )
+#  include <windows.h>
+#  define DIR_SEP "\\"
+#else
+#  define DIR_SEP "/"
+#endif
+
+static const char* get_test_dir()
+{
+	static char temp_path[4096] = {0};
+	static bool fetched = false;
+	if( !fetched )
+	{
+#if defined( _WIN32 )
+		GetTempPathA( sizeof( temp_path ), temp_path );
+		strcat( temp_path, "\\fswatcher_test\\" );
+#else
+		strcat( temp_path, P_tmpdir );
+		strcat( temp_path, "/fswatcher_test/" );
+#endif
+		printf( "Running tests in \"%s\"\n", temp_path );
+		fetched = true;
+	}
+	return temp_path;
+}
+
+static void create_dir( const char* dirname )
+{
+	char buffer[4096] = {0};
+#if defined( _WIN32 )
+	strcat( buffer, "mkdir " );
+#else
+	strcat( buffer, "mkdir -p " );
+#endif
+	strcat( buffer, dirname );
+	system( buffer );
+}
+
+static void create_file( const char* filename )
+{
+	char buffer[4096] = {0};
+#if defined( _WIN32 )
+	strcat( buffer, "type nul>>  " );
+#else
+	strcat( buffer, "touch " );
+#endif
+	strcat( buffer, filename );
+	system( buffer );
+}
+
+static void remove_dir( const char* dirname )
+{
+	char buffer[4096] = {0};
+#if defined( _WIN32 )
+	strcat( buffer, "rmdir /q /s " );
+#else
+	strcat( buffer, "rm -rf " );
+#endif
+	strcat( buffer, dirname );
+	system( buffer );
+}
+
+static void remove_file( const char* filename )
+{
+	char buffer[4096] = {0};
+#if defined( _WIN32 )
+	strcat( buffer, "del " );
+#else
+	strcat( buffer, "rm " );
+#endif
+	strcat( buffer, filename );
+	system( buffer );
+}
+
+static const char* test_dir_path( const char* path )
+{
+	static char buffer[4096];
+	buffer[0] = '\0';
+	strcat( buffer, get_test_dir() );
+	strcat( buffer, path );
+	return buffer;
+}
 
 static void setup_test_dir()
 {
 	// ... remove dir from prev test ...
-	REMOVE_DIR( TEST_DIR );
+	remove_dir( get_test_dir() );
 
 	// ... and recreate it ...
-	CREATE_DIR( TEST_DIR );
+	create_dir( get_test_dir() );
 }
 
 struct test_handler
@@ -86,25 +164,28 @@ TEST create_remove_dir()
 {
 	setup_test_dir();
 
-	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, TEST_DIR, 0x0 );
+	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, get_test_dir(), 0x0 );
+	ASSERT( 0x0 != watcher );
 	test_handler handler = { { watch_event_handler }, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
 
-	CREATE_DIR( TEST_DIR "d1" );
+	const char* path = test_dir_path( "d1" );
+
+	create_dir( path );
 	fswatcher_poll( watcher, &handler.handler, 0x0 );
 
-	if( int ret = check_event_handler( FSWATCHER_EVENT_DIR_CREATE, TEST_DIR "d1", 0x0, &handler ) ) return ret;
+	if( int ret = check_event_handler( FSWATCHER_EVENT_CREATE, path, 0x0, &handler ) ) return ret;
 	HANDLER_RESET( handler );
 
-	REMOVE_DIR( TEST_DIR "d1" );
+	remove_dir( path );
 	fswatcher_poll( watcher, &handler.handler, 0x0 );
 
-	if( int ret = check_event_handler( FSWATCHER_EVENT_DIR_REMOVE, TEST_DIR "d1", 0x0, &handler ) ) return ret;
+	if( int ret = check_event_handler( FSWATCHER_EVENT_REMOVE, path, 0x0, &handler ) ) return ret;
 	HANDLER_RESET( handler );
 
-	CREATE_DIR( TEST_DIR "d1" );
+	create_dir( path );
 	fswatcher_poll( watcher, &handler.handler, 0x0 );
 
-	if( int ret = check_event_handler( FSWATCHER_EVENT_DIR_CREATE, TEST_DIR "d1", 0x0, &handler ) ) return ret;
+	if( int ret = check_event_handler( FSWATCHER_EVENT_CREATE, path, 0x0, &handler ) ) return ret;
 	HANDLER_RESET( handler );
 
 	fswatcher_destroy( watcher );
@@ -115,19 +196,20 @@ TEST create_remove_file()
 {
 	setup_test_dir();
 
-	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, TEST_DIR, 0x0 );
+	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, get_test_dir(), 0x0 );
 	test_handler handler = { { watch_event_handler }, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
 
-	CREATE_FILE( TEST_DIR "f1" );
+	const char* path = test_dir_path( "f1" );
+	create_file( path );
 	fswatcher_poll( watcher, &handler.handler, 0x0 );
 
-	ASSERT_EQ( 0, check_event_handler( FSWATCHER_EVENT_FILE_CREATE, TEST_DIR "f1", 0x0, &handler ) );
+	ASSERT_EQ( 0, check_event_handler( FSWATCHER_EVENT_CREATE, path, 0x0, &handler ) );
 	HANDLER_RESET( handler );
 
-	REMOVE_FILE( TEST_DIR "f1" );
+	remove_file( path );
 	fswatcher_poll( watcher, &handler.handler, 0x0 );
 
-	ASSERT_EQ( 0, check_event_handler( FSWATCHER_EVENT_FILE_REMOVE, TEST_DIR "f1", 0x0, &handler ) );
+	ASSERT_EQ( 0, check_event_handler( FSWATCHER_EVENT_REMOVE, path, 0x0, &handler ) );
 	HANDLER_RESET( handler );
 
 	fswatcher_destroy( watcher );
@@ -144,6 +226,8 @@ GREATEST_MAIN_DEFS();
 
 int main( int argc, char **argv )
 {
+	get_test_dir();
+
     GREATEST_MAIN_BEGIN();
     RUN_SUITE( fswatcher );
     GREATEST_MAIN_END();
