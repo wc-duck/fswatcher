@@ -117,5 +117,17 @@ local fileserv = Link( settings, 'fswatch_tester', Compile( settings, 'tester/fs
 local test_objs  = Compile( settings, 'test/fswatcher_tests.cpp' )
 local tests      = Link( settings, 'fswatcher_tests', test_objs, lib )
 
+test_args = " -v"
+if ScriptArgs["test"]     then test_args = test_args .. " -t " .. ScriptArgs["test"] end
+if ScriptArgs["suite"]    then test_args = test_args .. " -s " .. ScriptArgs["suite"] end
 
+if family == "windows" then
+        AddJob( "test",  "unittest",  string.gsub( tests, "/", "\\" ) .. test_args, tests, tests )
+else
+        AddJob( "test",     "unittest",  tests .. test_args, tests, tests )
+        AddJob( "valgrind", "valgrind",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args, tests, tests )
+end
+
+PseudoTarget( "all", tests, benchmark )
+DefaultTarget( "all" )
 
