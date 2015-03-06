@@ -112,7 +112,7 @@ settings.link.Output = output_func
 local objs  = Compile( settings, 'src/fswatcher.cpp' )
 local lib   = StaticLibrary( settings, 'fswatcher', objs )
 
-local fileserv = Link( settings, 'fswatch_tester', Compile( settings, 'tester/fswatch_tester.cpp' ), lib )
+local tester = Link( settings, 'fswatch_tester', Compile( settings, 'tester/fswatch_tester.cpp' ), lib )
 
 local test_objs  = Compile( settings, 'test/fswatcher_tests.cpp' )
 local tests      = Link( settings, 'fswatcher_tests', test_objs, lib )
@@ -128,6 +128,6 @@ else
         AddJob( "valgrind", "valgrind",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args, tests, tests )
 end
 
-PseudoTarget( "all", tests, benchmark )
+PseudoTarget( "all", tests, tester )
 DefaultTarget( "all" )
 

@@ -37,7 +37,7 @@ static bool watch_event_handler( fswatcher_event_handler* handler, fswatcher_eve
 		case FSWATCHER_EVENT_CREATE: printf("item create %s!\n", src); break;
 		case FSWATCHER_EVENT_REMOVE: printf("item remove %s!\n", src); break;
 		case FSWATCHER_EVENT_MODIFY: printf("item modify %s!\n", src); break;
-		case FSWATCHER_EVENT_MOVED:  printf("item moved %s -> %s!\n", src, dst); break;
+		case FSWATCHER_EVENT_MOVE:   printf("item moved %s -> %s!\n", src, dst); break;
 		default:
 			printf("unhandled event!\n");
 	}

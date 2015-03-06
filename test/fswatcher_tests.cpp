@@ -72,20 +72,46 @@ static void create_dir ( const char* dirname  ) { run_system( "mkdir ", dirname 
 static void create_file( const char* filename ) { run_system( "type nul>> ", filename ); }
 static void remove_dir ( const char* dirname  ) { run_system( "rmdir /q /s ", dirname ); }
 static void remove_file( const char* filename ) { run_system( "del ", filename ); }
+static void move_file( const char* src, const char* dst )
+{
+	char buffer[4096] = {0};
+	strcat( buffer, "move " );
+	strcat( buffer, src );
+	strcat( buffer, " " );
+	strcat( buffer, dst );
+	strcat( buffer, " >nul 2>&1" );
+	if( system( buffer ) < 0 )
+		printf("faied to run system( %s )\n", buffer );
+}
 #else
 static void create_dir ( const char* dirname  ) { run_system( "mkdir -p ", dirname ); }
 static void create_file( const char* filename ) { run_system( "touch ", filename ); }
 static void remove_dir ( const char* dirname  ) { run_system( "rm -rf ", dirname ); }
 static void remove_file( const char* filename ) { run_system( "rm ", filename ); }
+static void move_file( const char* src, const char* dst )
+{
+	char buffer[4096] = {0};
+	strcat( buffer, "mv " );
+	strcat( buffer, src );
+	strcat( buffer, " " );
+	strcat( buffer, dst );
+	if( system( buffer ) < 0 )
+		printf("faied to run system( %s )\n", buffer );
+}
 #endif
 
-static const char* test_dir_path( const char* path )
+static const char* test_dir_path( const char* path, char* buffer )
 {
-	static char buffer[4096];
 	buffer[0] = '\0';
 	strcat( buffer, get_test_dir() );
 	strcat( buffer, path );
 	return buffer;
+}
+
+static const char* test_dir_path( const char* path )
+{
+	static char buffer[4096];
+	return test_dir_path( path, buffer );
 }
 
 static void setup_test_dir()
@@ -189,10 +215,34 @@ TEST create_remove_file()
 	return 0;
 }
 
+TEST test_move_file()
+{
+	setup_test_dir();
+	char path1[2048];
+	char path2[2048];
+	test_dir_path( "f1", path1 );
+	test_dir_path( "f2", path2 );
+
+	create_file( path1 );
+
+	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, get_test_dir(), 0x0 );
+	test_handler handler = { { watch_event_handler }, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
+
+	move_file( path1, path2 );
+	fswatcher_poll( watcher, &handler.handler, 0x0 );
+
+	if( int ret = check_event_handler( FSWATCHER_EVENT_MOVE, path1, path2, &handler ) ) return ret;
+	HANDLER_RESET( handler );
+
+	fswatcher_destroy( watcher );
+	return 0;
+}
+
 GREATEST_SUITE( fswatcher )
 {
 	RUN_TEST( create_remove_dir );
 	RUN_TEST( create_remove_file );
+	RUN_TEST( test_move_file );
 }
 
 GREATEST_MAIN_DEFS();

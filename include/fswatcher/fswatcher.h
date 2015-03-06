@@ -58,12 +58,12 @@ enum fswatcher_event_type
 	FSWATCHER_EVENT_CREATE = (1 << 1), ///< file in "src" was just created.
 	FSWATCHER_EVENT_REMOVE = (1 << 2), ///< file in "src" was just removed.
 	FSWATCHER_EVENT_MODIFY = (1 << 3), ///< file in "src" was just modified.
-	FSWATCHER_EVENT_MOVED  = (1 << 4), ///< file was moved from "src" to "dst", if "src" or "dst" is 0x0 it indicates that the path was outside the current watch.
+	FSWATCHER_EVENT_MOVE   = (1 << 4), ///< file was moved from "src" to "dst", if "src" or "dst" is 0x0 it indicates that the path was outside the current watch.
 
 	FSWATCHER_EVENT_ALL = FSWATCHER_EVENT_CREATE |
 						  FSWATCHER_EVENT_REMOVE |
 						  FSWATCHER_EVENT_MODIFY |
-						  FSWATCHER_EVENT_MOVED  ,
+						  FSWATCHER_EVENT_MOVE   ,
 
 	FSWATCHER_EVENT_BUFFER_OVERFLOW ///< doc me
 };

@@ -167,7 +167,7 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 
 	if( types & FSWATCHER_EVENT_CREATE ) w->watch_flags |= IN_CREATE;
 	if( types & FSWATCHER_EVENT_REMOVE ) w->watch_flags |= IN_DELETE;
-	if( types & FSWATCHER_EVENT_MOVED  ) w->watch_flags |= IN_MOVE;
+	if( types & FSWATCHER_EVENT_MOVE   ) w->watch_flags |= IN_MOVE;
 	if( types & FSWATCHER_EVENT_MODIFY ) w->watch_flags |= IN_MODIFY;
 	w->watch_flags |= IN_DELETE_SELF;
 
@@ -291,7 +291,7 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 					if( move_src != 0x0 )
 					{
 						// ... this is a new pair of a move, so the last one was move "outside" the current watch ...
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, 0x0 );
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVE, move_src, 0x0 );
 						fswatcher_free( allocator, move_src );
 					}
 
@@ -305,7 +305,7 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 					{
 						// ... this is the dst for a move ...
 						char* dst = fswatcher_build_full_path( watcher, allocator, ev->wd, ev->name, ev->len );
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, dst );
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVE, move_src, dst );
 						fswatcher_free( watcher->allocator, dst );
 						fswatcher_free( watcher->allocator, move_src );
 						move_src = 0x0;
@@ -314,18 +314,18 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 					else if( move_src != 0x0 )
 					{
 						// ... this is a "move to outside of watch" ...
-						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, 0x0 );
+						FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVE, move_src, 0x0 );
 						fswatcher_free( watcher->allocator, move_src );
 						move_src = 0x0;
 						move_cookie = 0;
 
 						// ...followed by a "move from outside to watch ...
-						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_MOVED, ev );
+						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_MOVE, ev );
 					}
 					else
 					{
 						// ... this is a "move from outside to watch" ...
-						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_MOVED, ev );
+						fswatcher_make_callback_with_dst_path( watcher, handler, FSWATCHER_EVENT_MOVE, ev );
 					}
 				}
 			}
@@ -337,7 +337,7 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 	if( move_src )
 	{
 		// ... we have a "move to outside of watch" that was never closed ...
-		FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVED, move_src, 0x0 );
+		FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVE, move_src, 0x0 );
 		fswatcher_free( allocator, move_src );
 	}
 }

@@ -144,6 +144,8 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
     if( res != TRUE )
     	return;
 
+    char* move_src = 0x0;
+
 	FILE_NOTIFY_INFORMATION* ev = (FILE_NOTIFY_INFORMATION*)watcher->read_buffer;
 	do
 	{
@@ -170,6 +172,20 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 				fswatcher_free( watcher->allocator, src );
 			}
 			break;
+			case FILE_ACTION_RENAMED_OLD_NAME:
+			{
+				move_src = fswatcher_build_full_path( watcher, watcher->allocator, ev );
+			}
+			break;
+			case FILE_ACTION_RENAMED_NEW_NAME:
+			{
+				char* dst = fswatcher_build_full_path( watcher, watcher->allocator, ev );
+				FS_MAKE_CALLBACK( FSWATCHER_EVENT_MOVE, move_src, dst );
+				fswatcher_free( watcher->allocator, move_src );
+				fswatcher_free( watcher->allocator, dst );
+				move_src = 0x0;
+			}
+			break;
 			default:
 				printf("unhandled action %d\n", ev->Action);
 		}
@@ -179,6 +195,12 @@ void fswatcher_poll( fswatcher_t watcher, fswatcher_event_handler* handler, fswa
 		ev = (FILE_NOTIFY_INFORMATION*)((char*)ev + ev->NextEntryOffset);
 	}
 	while( true );
+
+	if( move_src != 0x0 )
+	{
+		// how to handle this?
+		fswatcher_free( watcher->allocator, move_src );
+	}
 
 	fswatcher_begin_read( watcher );
 }
