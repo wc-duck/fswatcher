@@ -26,6 +26,7 @@
 
 #include <fswatcher/fswatcher.h>
 
+#include <sys/stat.h>
 #include <sys/inotify.h>
 #include <stdlib.h> // malloc
 #include <unistd.h> // read
@@ -139,14 +140,26 @@ static void fswatcher_recursive_add( fswatcher_t w, char* path_buffer, size_t pa
 	dirent* ent;
 	while( ( ent = readdir( dirp ) ) != 0x0 )
 	{
-		if( ent->d_type != DT_DIR || strcmp( ent->d_name, "." ) == 0 || strcmp( ent->d_name, ".." ) == 0 )
+		if( ( ent->d_type != DT_DIR && ent->d_type != DT_LNK ) || strcmp( ent->d_name, "." ) == 0 || strcmp( ent->d_name, ".." ) == 0 )
 			continue;
 
 		size_t d_name_size = strlen( ent->d_name );
 		if( path_len + d_name_size >= path_max )
 			return; // TODO: handle!
+
 		strcpy( path_buffer + path_len, ent->d_name );
 		path_buffer[ path_len + d_name_size ] = '/';
+
+		if( ent->d_type == DT_LNK )
+		{
+			struct stat statbuf;
+			if(stat( path_buffer, &statbuf) != -1 )
+			{
+				if( !S_ISDIR( statbuf.st_mode ) )
+					continue;
+			}
+		}
+
 		fswatcher_recursive_add( w, path_buffer, path_len + 1 + d_name_size, path_max );
 	}
 	path_buffer[path_len] = '\0';
@@ -191,8 +204,8 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 	size_t path_len = strlen( path_buffer );
 	if( path_buffer[path_len-1] != '/' )
 	{
-		path_buffer[path_len-1] = '/';
-		path_buffer[path_len] = '\0';
+		path_buffer[path_len] = '/';
+		path_buffer[path_len+1] = '\0';
 		++path_len;
 	}
 

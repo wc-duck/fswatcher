@@ -99,6 +99,20 @@ static void move_file( const char* src, const char* dst )
 	if( system( buffer ) < 0 )
 		printf("faied to run system( %s )\n", buffer );
 }
+
+static void create_symlink( const char* dst, const char* name, const char* src )
+{
+	char buffer[4096] = {0};
+	strcat( buffer, "cd " );
+	strcat( buffer, dst );
+	strcat( buffer, ";ln -s " );
+	strcat( buffer, src );
+	strcat( buffer, " " );
+	strcat( buffer, name );
+	// printf( "%s\n", buffer );
+	if( system( buffer ) < 0 )
+		printf("faied to run system( %s )\n", buffer );
+}
 #endif
 
 static const char* test_dir_path( const char* path, char* buffer )
@@ -150,7 +164,6 @@ int check_event_handler( fswatcher_event_type evtype, const char* src, const cha
 {
 	if( handler->type != evtype )
 		printf("%d != %d, %s %s\n", handler->type, evtype, src, dst);
-
 	ASSERT_EQ( handler->type, evtype );
 	if( src )
 		ASSERT_STR_EQ( src, handler->src );
@@ -273,12 +286,52 @@ TEST test_move_file()
 	return 0;
 }
 
+TEST watch_symlinked_dir()
+{
+#if !defined( _WIN32 )
+	// TODO: make this work on windows
+	setup_test_dir();
+	char watch_me_dir_path[2048];
+	char symlinked_dir_path[2048];
+	char test_file1_path[2048];
+	char test_file2_path[2048];
+	test_dir_path( "watch_me", watch_me_dir_path );
+	test_dir_path( "symlinked", symlinked_dir_path );
+	test_dir_path( "watch_me/linked/test.file", test_file1_path );
+	test_dir_path( "symlinked/test.file", test_file2_path );
+
+	create_dir( watch_me_dir_path );
+	create_dir( symlinked_dir_path );
+
+	create_symlink( watch_me_dir_path, "linked", symlinked_dir_path );
+
+	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, watch_me_dir_path, 0x0 );
+	test_handler handler = { { watch_event_handler }, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
+
+	create_file( test_file2_path );
+	fswatcher_poll( watcher, &handler.handler, 0x0 );
+
+	if( int ret = check_event_handler( FSWATCHER_EVENT_CREATE, test_file1_path, 0x0, &handler ) ) return ret;
+	HANDLER_RESET( handler );
+
+	remove_file( test_file2_path );
+	fswatcher_poll( watcher, &handler.handler, 0x0 );
+
+	if( int ret = check_event_handler( FSWATCHER_EVENT_REMOVE, test_file1_path, 0x0, &handler ) ) return ret;
+	HANDLER_RESET( handler );
+
+	fswatcher_destroy( watcher );
+#endif
+	return 0;
+}
+
 GREATEST_SUITE( fswatcher )
 {
 	RUN_TEST( create_remove_dir );
 	RUN_TEST( create_remove_file );
 	RUN_TEST( create_remove_file_in_subdir );
 	RUN_TEST( test_move_file );
+	RUN_TEST( watch_symlinked_dir );
 }
 
 GREATEST_MAIN_DEFS();
