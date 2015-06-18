@@ -63,6 +63,7 @@ static void run_system( const char* cmd, const char* path )
 	char buffer[4096] = {0};
 	strcat( buffer, cmd );
 	strcat( buffer, path );
+	// printf("system: %s\n", buffer);
 	if( system( buffer ) < 0 )
 		printf("faied to run system( %s )\n", buffer );
 }
@@ -132,8 +133,8 @@ struct test_handler
 };
 
 #define HANDLER_RESET( handler ) \
-	free( (void*)handler.src ); \
-	free( (void*)handler.dst ); \
+	free( (void*)handler.src ); handler.src = 0x0; \
+	free( (void*)handler.dst ); handler.dst = 0x0; \
 	handler.type = FSWATCHER_EVENT_ALL
 
 static bool watch_event_handler( fswatcher_event_handler* handler, fswatcher_event_type evtype, const char* src, const char* dst )
@@ -147,6 +148,9 @@ static bool watch_event_handler( fswatcher_event_handler* handler, fswatcher_eve
 
 int check_event_handler( fswatcher_event_type evtype, const char* src, const char* dst, test_handler* handler )
 {
+	if( handler->type != evtype )
+		printf("%d != %d, %s %s\n", handler->type, evtype, src, dst);
+
 	ASSERT_EQ( handler->type, evtype );
 	if( src )
 		ASSERT_STR_EQ( src, handler->src );
@@ -215,6 +219,37 @@ TEST create_remove_file()
 	return 0;
 }
 
+TEST create_remove_file_in_subdir()
+{
+#if !defined( _WIN32 )
+	// TODO: make this work
+	//       the events are posted but they require some polling and also on windows we get a modify
+	//       event for the containing dir that we do not get on linux, how to handle? ( add event on linux,
+	//       ignore modified for dirs on windows, just let the platforms differ? )
+	setup_test_dir();
+	create_dir( test_dir_path( "subdir" ) );
+
+	fswatcher_t watcher = fswatcher_create( FSWATCHER_CREATE_DEFAULT, FSWATCHER_EVENT_ALL, get_test_dir(), 0x0 );
+	test_handler handler = { { watch_event_handler }, FSWATCHER_EVENT_ALL, 0x0, 0x0 };
+
+	const char* path = test_dir_path( "subdir" DIR_SEP "f1" );
+	create_file( path );
+	fswatcher_poll( watcher, &handler.handler, 0x0 );
+
+	ASSERT_EQ( 0, check_event_handler( FSWATCHER_EVENT_CREATE, path, 0x0, &handler ) );
+	HANDLER_RESET( handler );
+
+	remove_file( path );
+
+	fswatcher_poll( watcher, &handler.handler, 0x0 );
+	ASSERT_EQ( 0, check_event_handler( FSWATCHER_EVENT_REMOVE, test_dir_path( "subdir" DIR_SEP "f1" ), 0x0, &handler ) );
+	HANDLER_RESET( handler );
+
+	fswatcher_destroy( watcher );
+#endif
+	return 0;
+}
+
 TEST test_move_file()
 {
 	setup_test_dir();
@@ -242,6 +277,7 @@ GREATEST_SUITE( fswatcher )
 {
 	RUN_TEST( create_remove_dir );
 	RUN_TEST( create_remove_file );
+	RUN_TEST( create_remove_file_in_subdir );
 	RUN_TEST( test_move_file );
 }
 
