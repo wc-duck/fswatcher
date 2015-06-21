@@ -156,16 +156,11 @@ static void fswatcher_recursive_add( fswatcher_t w, char* path_buffer, size_t pa
 		if( ent->d_type == DT_LNK || ent->d_type == DT_UNKNOWN )
 		{
 			struct stat statbuf;
-			if(stat( path_buffer, &statbuf ) != -1 )
-			{
-				if( !S_ISDIR( statbuf.st_mode ) )
-					continue;
-			}
-			else
-			{
-				fprintf( stderr, "stat() failed for path %s ", path_buffer );
-				perror("");
-			}
+			if( stat( path_buffer, &statbuf ) == -1 )
+				continue;
+
+			if( !S_ISDIR( statbuf.st_mode ) )
+				continue;
 		}
 
 		fswatcher_recursive_add( w, path_buffer, path_len + 1 + d_name_size, path_max );
