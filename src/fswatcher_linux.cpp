@@ -99,7 +99,7 @@ static void fswatcher_add( fswatcher_t w, char* path )
 	int wd = inotify_add_watch( w->notifierfd, path, w->watch_flags );
 	if( wd < 0 )
 	{
-		printf("failed to add a watch for %s", path);
+		fprintf(stderr, "failed to add a watch for %s", path);
 		perror("");
 		return;
 	}
