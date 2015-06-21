@@ -140,7 +140,10 @@ static void fswatcher_recursive_add( fswatcher_t w, char* path_buffer, size_t pa
 	dirent* ent;
 	while( ( ent = readdir( dirp ) ) != 0x0 )
 	{
-		if( ( ent->d_type != DT_DIR && ent->d_type != DT_LNK ) || strcmp( ent->d_name, "." ) == 0 || strcmp( ent->d_name, ".." ) == 0 )
+		if( ( ent->d_type != DT_DIR && ent->d_type != DT_LNK && ent->d_type != DT_UNKNOWN ) )
+			continue;
+
+		if( strcmp( ent->d_name, "." ) == 0 || strcmp( ent->d_name, ".." ) == 0 )
 			continue;
 
 		size_t d_name_size = strlen( ent->d_name );
@@ -150,7 +153,7 @@ static void fswatcher_recursive_add( fswatcher_t w, char* path_buffer, size_t pa
 		strcpy( path_buffer + path_len, ent->d_name );
 		path_buffer[ path_len + d_name_size ] = '/';
 
-		if( ent->d_type == DT_LNK )
+		if( ent->d_type == DT_LNK || ent->d_type == DT_UNKNOWN )
 		{
 			struct stat statbuf;
 			if(stat( path_buffer, &statbuf) != -1 )
