@@ -99,7 +99,7 @@ static void fswatcher_add( fswatcher_t w, char* path )
 	int wd = inotify_add_watch( w->notifierfd, path, w->watch_flags );
 	if( wd < 0 )
 	{
-		fprintf(stderr, "failed to add a watch for %s", path);
+		fprintf(stderr, "failed to add a watch for %s ", path);
 		perror("");
 		return;
 	}
@@ -156,10 +156,15 @@ static void fswatcher_recursive_add( fswatcher_t w, char* path_buffer, size_t pa
 		if( ent->d_type == DT_LNK || ent->d_type == DT_UNKNOWN )
 		{
 			struct stat statbuf;
-			if(stat( path_buffer, &statbuf) != -1 )
+			if(stat( path_buffer, &statbuf ) != -1 )
 			{
 				if( !S_ISDIR( statbuf.st_mode ) )
 					continue;
+			}
+			else
+			{
+				fprintf( stderr, "stat() failed for path %s ", path_buffer );
+				perror("");
 			}
 		}
 
