@@ -147,11 +147,12 @@ static void fswatcher_recursive_add( fswatcher_t w, char* path_buffer, size_t pa
 			continue;
 
 		size_t d_name_size = strlen( ent->d_name );
-		if( path_len + d_name_size >= path_max )
+		if( path_len + d_name_size + 2 >= path_max )
 			return; // TODO: handle!
 
 		strcpy( path_buffer + path_len, ent->d_name );
 		path_buffer[ path_len + d_name_size ] = '/';
+		path_buffer[ path_len + d_name_size + 1 ] = '\0';
 
 		if( ent->d_type == DT_LNK || ent->d_type == DT_UNKNOWN )
 		{
@@ -163,7 +164,7 @@ static void fswatcher_recursive_add( fswatcher_t w, char* path_buffer, size_t pa
 				continue;
 		}
 
-		fswatcher_recursive_add( w, path_buffer, path_len + 1 + d_name_size, path_max );
+		fswatcher_recursive_add( w, path_buffer, path_len + d_name_size + 1, path_max );
 	}
 	path_buffer[path_len] = '\0';
 
@@ -234,7 +235,6 @@ static char* fswatcher_build_full_path( fswatcher_t watcher, fswatcher_allocator
 	if( res )
 	{
 		memcpy( res, dirpath, dirlen );
-		res[dirlen-1] = '/';
 		memcpy( res + dirlen, name, name_len );
 		res[length-1] = 0;
 	}
