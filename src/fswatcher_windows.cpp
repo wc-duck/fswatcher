@@ -111,7 +111,7 @@ fswatcher_t fswatcher_create( fswatcher_create_flags flags, fswatcher_event_type
 	fswatcher_t w = (fswatcher_t)fswatcher_realloc( allocator, 0x0, 0, sizeof( fswatcher ) );
     w->allocator = allocator;
     w->watch_dir_len = strlen( watch_dir );
-    w->watch_dir = (char*)fswatcher_realloc( w->allocator, 0x0, 0, w->watch_dir_len );
+    w->watch_dir = (char*)fswatcher_realloc( w->allocator, 0x0, 0, w->watch_dir_len + 1 );
     strcpy( (char*)w->watch_dir, watch_dir );
     w->recursive = ( flags & FSWATCHER_CREATE_RECURSIVE ) > 0;
     w->blocking  = ( flags & FSWATCHER_CREATE_BLOCKING ) > 0;
