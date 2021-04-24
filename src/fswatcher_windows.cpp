@@ -73,17 +73,31 @@ static void fswatcher_free( fswatcher_allocator* allocator, void* ptr )
 static char* fswatcher_build_full_path( fswatcher_t watcher, fswatcher_allocator* allocator, FILE_NOTIFY_INFORMATION* ev )
 {
 	size_t path_len = (size_t)( ev->FileNameLength / 2 );
-	char* res = (char*)fswatcher_realloc( allocator, 0x0, 0, path_len + watcher->watch_dir_len + 1 );
+
+	int utf8_len = WideCharToMultiByte( CP_UTF8,       // CodePage
+										0,             // dwFlags
+										ev->FileName,  // lpWideCharStr
+										(int)path_len, // cchWideChar
+										nullptr,       // lpMultiByteStr
+										0,             // cbMultiByte
+										nullptr,       // lpDefaultChar
+										nullptr );     // lpUsedDefaultChar
+	size_t res_len = watcher->watch_dir_len + utf8_len;
+
+	char* res = (char*)fswatcher_realloc( allocator, 0x0, 0, res_len + 1 );
 	strcpy( res, watcher->watch_dir );
 
-	// HACKY! convert to utf8 or keep as WCHAR depending on compile-define.
-	for( size_t i = 0; i < path_len; ++i )
-	{
-		if( ev->FileName[i] > 255 )
-			printf("whooot? %u\n", ev->FileName[i]);
-		res[ watcher->watch_dir_len + i ] = ev->FileName[i] > 255 ? '_' : (char)ev->FileName[i];
-	}
-	res[watcher->watch_dir_len + path_len ] = '\0';
+	char* file_part = res + watcher->watch_dir_len;
+
+	WideCharToMultiByte( CP_UTF8,       // CodePage
+						 0,             // dwFlags
+						 ev->FileName,  // lpWideCharStr
+						 (int)path_len, // cchWideChar
+						 file_part,     // lpMultiByteStr
+						 utf8_len,      // cbMultiByte
+						 nullptr,       // lpDefaultChar
+						 nullptr );     // lpUsedDefaultChar
+	res[res_len] = '\0';
 	return res;
 }
 
