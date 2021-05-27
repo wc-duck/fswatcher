@@ -1,13 +1,15 @@
 platform:
   - x86
 
+image:
+  - Visual Studio 2019
+
 install:
-  - c:\"Program Files (x86)"\"Microsoft Visual Studio 12.0"\VC\vcvarsall.bat
   - git clone https://github.com/matricks/bam.git
   - cd bam
   - make_win64_msvc.bat
   - cd ..
-  - bam\bam.exe config=debug -r s test
-  - bam\bam.exe config=release -r s test
+  - bam\bam.exe config=debug -r sc test
+  - bam\bam.exe config=release -r sc test
 
 build: OFF
