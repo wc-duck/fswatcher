@@ -34,11 +34,8 @@ extern "C" {
 #endif  // __cplusplus
 
 /**
- *
+ * A note on paths. All paths in and out of the library is utf8 encoded. 
  */
-#if !defined(FSWATCHER_PATH_FORMAT_NATIVE) || !defined(FSWATCHER_PATH_FORMAT_UTF8)
-#    define FSWATCHER_PATH_FORMAT_UTF8
-#endif
 
 /**
  *
