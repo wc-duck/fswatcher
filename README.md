@@ -29,12 +29,4 @@ Path and unicode
 ----------------
 
 Different os:es = different encodings for paths =/
-The way fswatcher deals with this is also decided by the user compile time.
-Either fswatcher works in utf8 mode where all paths are utf8, both into the library and out of it, or the library works with "native" path encodings.
-
-Controlling how the library works is done by defining 'FSWATCHER_PATH_ENCODING_NATIVE' or 'FSWATCHER_PATH_ENCODING_UTF8' where 'FSWATCHER_PATH_ENCODING_UTF8' is used if no encoding was defined.
-
-Native encodings:
-* Linux - utf8 as "char*"
-* OSX - utf8 as "char*"
-* Windows - utf16 as "WCHAR*"
+The way fswatcher deals with this is to always input and output utf8 encoded strings.
